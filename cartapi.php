@@ -248,6 +248,8 @@ static function menu($p){$p1=$p['p1']??'';
 	$ret.=bj(self::$cb.',,z|'.self::$a.',call|act=add|p1',langp('add'),'btsav');
 	$ret.=bj(self::$cb.',,z|'.self::$a.',call|act=view|p1',langp('view'),'btsav');
 	$ret.=bj(self::$cb.',,z|'.self::$a.',call|act=checkout|p1',langp('checkout'),'btsav');
+	$ret.=lk('http://logic.ovh/api/cartapi/create&',langp('api'),'btn');
+	$ret.=hlpbt('cartapi_app');
 	return $ret;}
 
 static function content($p){
