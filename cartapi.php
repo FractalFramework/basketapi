@@ -18,7 +18,6 @@ static $a=__CLASS__;
 static $cb='mdb';
 static $process=[];
 static $errors=[];
-static $types=['ecommerce_id'=>'int','customer_id'=>'int','item_list'=>'json','product_sku'=>'int','product_name'=>'var','filetype'=>'pdf-psd-ai-','quantity'=>'int','delivery_date'=>'date'];
 
 #api/client
 
@@ -27,24 +26,6 @@ static $types=['ecommerce_id'=>'int','customer_id'=>'int','item_list'=>'json','p
 * it's the client side
 * with an example
 */
-
-//http://telex.ovh/api/cartapi/put&ecommerce_id=1&customer_id=1&item_list={"1":{"product_sku":1,"product_name":"prod1","filetype":"pdf","quantity":"101","delivery_date":"2021-11-20"},"2":{"product_sku":2,"product_name":"prod2","filetype":"ai","quantity":"499","delivery_date":"2021-11-19"}}&verbose=1
-static function test(){
-	$r['ecommerce_id']=1;
-	$r['customer_id']=1;
-	$rb[1]['product_sku']=1;
-	$rb[1]['product_name']='prod1';
-	$rb[1]['filetype']='pdf';
-	$rb[1]['quantity']='101';
-	$rb[1]['delivery_date']='2021-11-20';
-	$rb[2]['product_sku']=2;
-	$rb[2]['product_name']='prod2';
-	$rb[2]['filetype']='ai';
-	$rb[2]['quantity']='499';
-	$rb[2]['delivery_date']='2021-11-19';
-	$r['item_list']=json_encode($rb);
-	$r['verbose']=0;
-	return $r;}
 
 static function getkey(){return 1234;}
 
@@ -55,37 +36,6 @@ static function apicall($r,$mode){
 	$u=$ubase.'api/cartapi/'.$mode.'?'.mkprm($r).'&token='.$k;
 	$d=@file_get_contents($u);
 	return json_decode($d,true);}
-
-/*
-* this section need the frameweork
-* it's used to display an interface
-* that let test things
-*/
-
-#call
-static function call($p){//pr($p);
-	$act=$p['act']??''; $p1=$p['p1']??''; $ret='';
-	if($act=='url'){
-		$prm=explode_k($p1,'&','=');//build array from url
-		$ret=self::core($prm);}
-	return $ret;}
-
-#content
-static function menu($p){$p1=$p['p1']??'';
-	$ja=self::$cb.'|'.self::$a.',call|';
-	$p1=htmlentities(mkprm(self::test())); $j=$ja.'act=url|p1';
-	$ret=form::call(['p1'=>['url','inputcall',$p1,$j],['ok','submit',$j,'']]);//build ajax form
-	$p1=''; $j=$ja.'act=item|p1';
-	//$ret=form::call(['p1'=>['item','inputcall',$p1,$j],['ok','submit',$j,'']]);
-	return $ret;}
-
-static function content($p){
-	//self::install();
-	$p['p1']=$p['p1']??'';
-	$bt=self::menu($p);
-	return $bt.div('','board',self::$cb);}
-	
-###############################
 
 /*
 * here is the job
@@ -106,73 +56,10 @@ static private $status=[200=>'ok',201=>'created',204=>'no_content',206=>'partial
 */
 
 static function render_results($r,$n=404){
-	$ret['status']=$n;
-	$ret['results']=$r;
-	$ret['created at']=date('Y-m-d H:i:s');
+	$ret=['status'=>$n,'results'=>$r];
 	header('HTTP/1.1 '.$n.' '.(self::$status[$n]??404));
 	header('Content-Type: text/json; charset=UTF-8');
 	return json_encode($ret);}
-
-/*
-* method verif_types
-* do not verify validity, only types
-* accepted types are int/var/list given by "-", and time.
-* return boolean $res, 1 if true
-*/
-
-static function verif_types($k,$v){//type,value
-	$expected_type=self::$types[$k]??'';
-	$detected_type='';
-	if(is_numeric($v) && strpos($v,'.')===false)
-		$detected_type='int';//prevent float numbers
-	elseif(is_numeric($v))
-		$detected_type='float';//unused, will produce an error later
-	elseif(strpos($expected_type.'-',$v)!==false)
-		$detected_type='pdf-psd-ai-';//it's a few stupid but we just verif if "is_type"
-	elseif(DateTime::createFromFormat('Y-m-d',$v)!==false)
-		$detected_type='date';//we are not sure if the date is good
-	elseif(is_string($v))
-		$detected_type='var';//surely more verifs to do here
-	$res=$detected_type==$expected_type?1:0;//validation
-	if(!$res)self::$errors[]=$k.' at '.$v.' using bad type: '.$detected_type.' instead of '.$expected_type;
-	return $res;}
-
-//we check if this commerce exists
-static function ecommerce_exists($n){return 1;}
-//we check if this customer exists (and if the request is verfied etc...
-static function customer_exists($n){return 1;}
-
-/*
-* method itemlist_validation
-* desesprate way to validate values without using asserts :(
-* returns nothing, only fuels the array self::$error[]
-*/
-
-//we check if list of items are valid
-static function itemlist_validation($sku,$r){
-	$er=[];//errors
-	foreach($r as $k=>$v){
-		switch($k){
-			case('filetype'):
-				if($v!='pdf' && $v!='psd' && $v!='ai')
-					self::$errors[]='bad filetype for item '.$sku;
-			break;
-			case('delivery_date'):
-				if(strlen($v)!=10)
-					self::$errors[]='bad format of date for item '.$sku;
-				if(strtotime($v)<time())
-					self::$errors[]='illogical date for item '.$sku;
-			break;
-			case('quantity'):
-				//assert('$v>0');
-				if($v<0)
-					self::$errors[]='negative quantity for item '.$sku;
-			break;
-		}
-	}
-}
-
-//static $types=['ecommerce_id'=>'int','customer_id'=>'int','item_list'=>'json','product_sku'=>'int','product_name'=>'var','filetype'=>'pdf-psd-ai-','quantity'=>'int','delivery_date'=>'date'];
 
 /*
 * method calculate_prise
@@ -216,89 +103,177 @@ static function global_result($items){
 	$price=array_sum(array_column($additions,'amount'));
 	$vat=array_sum(array_column($additions,'vat'))/count($additions);//average
 	$total=array_sum(array_column($additions,'total'));
-	$ret=['Net price'=>round($price,2),'Vat'=>round($vat,2),'Total quote'=>round($total,2)];
+	$ret=['price'=>round($price,2),'vat'=>round($vat,2),'total'=>round($total,2)];
 	self::$process['global_result']=$ret;//keep that
 	return $ret;}
 
 /*
-* method core()
-* the script of all the activities
-* 1. check types
-* 2. chek validity
-* 3. calculate results
+* method verif_types
+* do not verify validity, only types
+* accepted types are int/var/list given by "-", and time.
+* return boolean $res, 1 if true
 */
 
-static function core($p){
-	//we receive our parameters
-	[$ecommerce_id,$customer_id,$item_list,$action]=vals($p,['ecommerce_id','customer_id','item_list','action']);
-	
-	//check json
-	$items=json_decode($item_list,true); //pr($items);
-	if(!$items)
-		return self::render_results(['bad request'=>json_er()],400);
-	else self::$process['datas']=$items;
-	
-	//we evaluate the types of our 3 variables
-	$ecommerce_id_ok=self::verif_types('ecommerce_id',$ecommerce_id);
-	if(!$ecommerce_id_ok)self::$errors[]='ecommerce_id using bad type';
-	$customer_id_ok=self::verif_types('customer_id',$customer_id);
-	if(!$customer_id_ok)self::$errors[]='customer_id using bad type';
-	
-	//evaluate types of the elements of the items
-	$rb=[];
-	foreach($items as $k=>$item)
-		foreach($item as $kb=>$vb)
-			$rb[$k][$kb]=self::verif_types($kb,$vb); //pr($rb);
-	//validation means n points for n entries
-	$item_validation=[];
-	foreach($rb as $k=>$v)
-		$item_validation[$k]=count($v)==array_sum($v);//verify sum of validations for each item
-	$ok=count($item_validation)==array_sum($item_validation);//all is okay
-	
-	//return errors
-	if(!$ok)
-		return self::render_results(self::$errors,400);
-	else self::$process[]='no types error';
-	
-	//we kindly evaluate the validity of our 3 variables
-	$ecom_ok=self::ecommerce_exists($ecommerce_id);//unused here
-	$cust_ok=self::customer_exists($customer_id);//unused here
-	//... verify is others values are reasonables... (todo)
-	//I just really need to verif dates and filetype
-	foreach($items as $k=>$item)
-		self::itemlist_validation($k,$item);
-	//return errors
-	if(self::$errors)//before last action, self::$errors was empty
-		return self::render_results(self::$errors,400);
-	else self::$process[]='datas are valid';
-	
-	//ok, and now the real job...
-	$res=self::global_result($items);
-	if(get('verbose'))$res['verbose']=self::$process; //pr(self::$process);
-	
-	return self::render_results($res,200);//output result
-}
+static $types=['ecommerce_id'=>'int','customer_id'=>'int','item_list'=>'json','product_sku'=>'int','product_name'=>'var','filetype'=>'pdf-psd-ai','quantity'=>'int','delivery_date'=>'date'];
+
+static function validation($k,$v){//type,value
+	$expected_type=self::$types[$k]??'';
+	$detected_type='';
+	$res='';
+	switch($k){
+		case('product_sku'):$res=is_numeric($v) && $v>0?1:0; break;
+		case('product_name'):$res=!is_numeric($v)?1:0; break;
+		case('filetype'):$ra=explode('-',$expected_type); $res=in_array($v,$ra)?1:0; break;
+		case('quantity'):$res=is_numeric($v) && $v>0?1:0; break;
+		case('delivery_date'):$res=DateTime::createFromFormat('Y-m-d',$v)!==false?1:0; break;}
+	if(!$res)self::$errors[]='error on '.$k.': expected '.$expected_type.' for value '.$v;
+	return $res;}
 
 /*
-* mehod api()
-* here begins the activity
-* just recuperate the gets
+* here are the methods for each called status
 */
 
+//returns: ['created_at','updated_at'];
+static function create($p){
+	[$ecommerce_id,$customer_id,$verbose]=vals($p,['ecommerce_id','customer_id','verbose']);
+	$id=$ecommerce_id.'-'.$customer_id;
+	$r1=['ecommerce_id'=>$ecommerce_id,'customer_id'=>$customer_id];
+	$r2=['created_at'=>date('Y-m-d H:i:s'),'updated_at'=>date('Y-m-d H:i:s')];
+	if(!isset($_SESSION[$id]))$_SESSION[$id]=$r1+$r2;
+	else return self::render_results(['status'=>'cart already exists'],200);
+	$ret=['created_at'=>$_SESSION[$id]['created_at'],'updated_at'=>$_SESSION[$id]['updated_at']];
+	return self::render_results($ret,200);}
+
+static function delete($p){
+	[$ecommerce_id,$customer_id,$verbose]=vals($p,['ecommerce_id','customer_id','verbose']);
+	$id=$ecommerce_id.'-'.$customer_id;
+	if(!isset($_SESSION[$id]))return self::render_results(['status'=>'cart not exists'],200);
+	unset($_SESSION[$id]);//remove session
+	return self::render_results(['status'=>'cart have been removed'],200);}
+
+//returns: ['updated_at'];
+static function add($p){
+	[$ecommerce_id,$customer_id,$item_list,$verbose]=vals($p,['ecommerce_id','customer_id','item_list','verbose']);
+	//if(!$item_list)return self::render_results(['status'=>'item_list is not specified'],200);
+	$id=$ecommerce_id.'-'.$customer_id;
+	if(!isset($_SESSION[$id]))return self::render_results(['status'=>'cart not exists'],200);
+	$item=json_decode($item_list,true); //pr($item);
+	$sku=$item['product_sku']??'';
+	if(!$sku)return self::render_results(['status'=>'sku is not specified'],200);
+	$rb=[];
+	foreach($item as $k=>$v)
+		$rb[$k]=self::validation($k,$v); //pr($rb);
+	//validation means n points for n entries
+	$ok=count($rb)==array_sum($rb);//all is okay
+	if(!$ok)//return errors
+		return self::render_results(self::$errors,200);
+	else self::$process[]='no error for sku: '.$sku;
+	$item['updated_at']=date('Y-m-d H:i:s');
+	$items=$_SESSION[$id]['item_list']??[];
+	$ex=0;//search in array if sku exists
+	foreach($items as $k=>$v)if($v['product_sku']==$sku)$ex=1;
+	if(!$ex)$_SESSION[$id]['item_list'][]=$item;
+	else return self::render_results(['status'=>'this article is already in the basket'],200);//could add quantity
+	return self::render_results(['updated_at'=>$item['updated_at']],200);}
+
+//returns: ['ecommerce_id','customer_id','created_at'=>'','price'=>'','item_list'=>[]];
+static function view($p){
+	[$ecommerce_id,$customer_id,$verbose]=vals($p,['ecommerce_id','customer_id','verbose']);
+	$id=$ecommerce_id.'-'.$customer_id;
+	$ra=$_SESSION[$id]??[]; //pr($ra);
+	if(!$ra)return self::render_results(['status'=>'cart not exists'],200);
+	$items=$ra['item_list'];
+	$res=self::global_result($items);
+	$ret=['ecommerce_id'=>$ra['ecommerce_id'],'customer_id'=>$ra['customer_id'],'created_at'=>$ra['created_at'],'price'=>$res['total'],'item_list'=>$items];
+	return self::render_results($ret,200);}
+
+//returns: ['date_checkout','price'=>'','vat'=>'','total'=>''];
+static function checkout($p){
+	[$ecommerce_id,$customer_id,$verbose]=vals($p,['ecommerce_id','customer_id','verbose']);
+	$id=$ecommerce_id.'-'.$customer_id;
+	$items=$_SESSION[$id]['item_list']??[];
+	if(!$items)return self::render_results(['status'=>'cart is empty'],200);
+	$res=self::global_result($items);
+	return self::render_results($res,200);}
+
+/*
+* this section need the frameweork
+* it's used to display an interface
+* that let test things
+*/
+
+#call from ajax
+static function call($p){$ret='';
+	[$act,$p1]=vals($p,['act','p1']);
+	$prm=explode_k($p1,'&','='); //pr($prm);
+	if(!$prm)return self::render_results(['status'=>'no datasreceived'],200);
+	if(empty($prm['ecommerce_id']))return self::render_results(['status'=>'ecommerce_id is not specified'],200);
+	if(empty($prm['customer_id']))return self::render_results(['status'=>'customer_id is not specified'],200);
+	if($act=='create')return self::create($prm);
+	if($act=='del')return self::delete($prm);
+	if($act=='add')return self::add($prm);
+	if($act=='view')return self::view($prm);
+	if($act=='checkout')return self::checkout($prm);
+	return help('nothing');}
+
+#call from url api/
 static function api($p){
 	//pr($p);//framework usually accept pseudo-json urls
-	//pr($_GET);//we obtain here : [app] => cartapi, [p] => put, [ecommerce_id] => 1, [item_list] => {"1":...
-	
+	//pr($_GET);//we obtain here : [app] => cartapi, [p] => create, [ecommerce_id] => 1, [item_list] => {"1":...
 	//ok, go : we build the array
-	$params['action']=get('p');//post,put,get,del
-	$params['ecommerce_id']=get('ecommerce_id');
-	$params['customer_id']=get('customer_id');
-	$params['item_list']=get('item_list');
-	return self::core($params);}
+	$status=get('p');//create,add,view,checkout
+	$prm['ecommerce_id']=get('ecommerce_id');
+	$prm['customer_id']=get('customer_id');
+	$prm['item_list']=get('item_list');
+	$prm['verbose']=get('verbose');
+	if(!$prm['ecommerce_id'])return self::render_results(['status'=>'ecommerce_id is not specified'],200);
+	if(!$prm['customer_id'])return self::render_results(['status'=>'customer_id is not specified'],200);
+	if($status=='create')return self::create($prm);
+	if($status=='add')return self::add($prm);
+	if($status=='view')return self::view($prm);
+	if($status=='checkout')return self::checkout($prm);
+	return self::render_results(['bad request'=>'400'],200);}
+
+#content (web interface)
+static function ex(){
+return ['call'=>'ecommerce_id=1&customer_id=1',
+'ex1'=>'ecommerce_id=1&customer_id=1&item_list={"product_sku":1,"product_name":"prod1","filetype":"pdf","quantity":"101","delivery_date":"2021-11-20"}&verbose=0',
+'ex2'=>'ecommerce_id=1&customer_id=1&item_list={"product_sku":2,"product_name":"prod2","filetype":"ai","quantity":"499","delivery_date":"2021-11-19"}&verbose=0'];}
+
+static function menu($p){$p1=$p['p1']??'';
+	$ret=build::sample(['a'=>'cartapi','b'=>'p1']);
+	$ret.=textarea('p1','',44,4);
+	$ret.=bj(self::$cb.',,z|'.self::$a.',call|act=create|p1',langp('create'),'btsav');
+	$ret.=bj(self::$cb.',,z|'.self::$a.',call|act=del|p1',langp('delete'),'btsav');
+	$ret.=bj(self::$cb.',,z|'.self::$a.',call|act=add|p1',langp('add'),'btsav');
+	$ret.=bj(self::$cb.',,z|'.self::$a.',call|act=view|p1',langp('view'),'btsav');
+	$ret.=bj(self::$cb.',,z|'.self::$a.',call|act=checkout|p1',langp('checkout'),'btsav');
+	return $ret;}
+
+static function content($p){
+	//self::install();
+	$p['p1']=$p['p1']??'';
+	$bt=self::menu($p);
+	return $bt.div('','board',self::$cb);}
 
 }
 
-//things of framework (don't be afraid)
+#samples
+/*static function test($p){
+	$k=$p['k']??'create';//status
+	$r['create']=['ecommerce_id'=>1,'customer_id'=>1];
+	//returns: ['created_at'=>date('Y-m-d H:i:s'),'updated_at'=>date('Y-m-d H:i:s')];
+	$r['add']=['ecommerce_id'=>1,'customer_id'=>1];
+	$rb=['product_sku'=>rand(1,100),'product_name'=>'prod'.rand(1,100),'filetype'=>'pdf','quantity'=>rand(1,1001),'delivery_date'=>date('Y-m-d H:i:s',time()+rand(0,259200))];
+	$r['add']['item_list']=json_encode($rb);
+	//returns: ['updated_at'=>date('Y-m-d H:i:s')];
+	$r['view']=['ecommerce_id'=>1,'customer_id'=>1];
+	//returns: ['ecommerce_id'=>1,'customer_id'=>1,'created_at'=>'','price'=>'','item_list'=>''];
+	$r['checkout']=[''];
+	//returns: ['date_checkout'=>date('Y-m-d H:i:s'),'price'=>'','vat'=>'','total'=>''];
+	return $r[$k];}*/
+
+#things of framework (don't be afraid)
 //function get($d){if(isset($_GET[$d]))return urldecode($_GET[$d]);}
 //function mkprm($p){foreach($p as $k=>$v)$rt[]=$k.'='.$v; if($rt)return implode('&',$rt);}
 //function val($r,$d,$b=''){if(!isset($r[$d]))return $b; return $r[$d]=='memtmp'?memtmp($d):$r[$d];}
