@@ -140,64 +140,64 @@ static function create($p){
 	$r1=['ecommerce_id'=>$ecommerce_id,'customer_id'=>$customer_id];
 	$r2=['created_at'=>date('Y-m-d H:i:s'),'updated_at'=>date('Y-m-d H:i:s')];
 	if(!isset($_SESSION[$id]))$_SESSION[$id]=$r1+$r2;
-	else return self::render_results(['status'=>'cart already exists'],200);
+	else return ['status'=>'cart already exists'];
 	$ret=['created_at'=>$_SESSION[$id]['created_at'],'updated_at'=>$_SESSION[$id]['updated_at']];
-	return self::render_results($ret,200);}
+	return $ret;}
 
 static function delete($p){
 	[$ecommerce_id,$customer_id]=vals($p,['ecommerce_id','customer_id']);
 	$id=$ecommerce_id.'-'.$customer_id;
-	if(!isset($_SESSION[$id]))return self::render_results(['status'=>'cart not exists'],200);
+	if(!isset($_SESSION[$id]))return ['status'=>'cart not exists'];
 	unset($_SESSION[$id]);//remove session
-	return self::render_results(['status'=>'cart have been removed'],200);}
+	return ['status'=>'cart have been removed'];}
 
 //returns: ['updated_at'];
 static function add($p){
 	[$ecommerce_id,$customer_id,$item_list]=vals($p,['ecommerce_id','customer_id','item_list']);
-	//if(!$item_list)return self::render_results(['status'=>'item_list is not specified'],200);
+	//if(!$item_list)return ['status'=>'item_list is not specified'];
 	$id=$ecommerce_id.'-'.$customer_id;
-	if(!isset($_SESSION[$id]))return self::render_results(['status'=>'cart not exists'],200);
+	if(!isset($_SESSION[$id]))return ['status'=>'cart not exists'];
 	$item=json_decode($item_list,true); //pr($item);
 	$sku=$item['product_sku']??'';
-	if(!$sku)return self::render_results(['status'=>'sku is not specified'],200);
+	if(!$sku)return ['status'=>'sku is not specified'];
 	$rb=[];
 	foreach($item as $k=>$v)
 		$rb[$k]=self::validation($k,$v); //pr($rb);
 	//validation means n points for n entries
 	$ok=count($rb)==array_sum($rb);//all is okay
 	if(!$ok)//return errors
-		return self::render_results(self::$errors,200);
+		return self::$errors;
 	else self::$process[]='no error for sku: '.$sku;
 	$item['updated_at']=date('Y-m-d H:i:s');
 	$items=$_SESSION[$id]['item_list']??[];
 	$ex=0;//search in array if sku exists
 	foreach($items as $k=>$v)if($v['product_sku']==$sku)$ex=1;
 	if(!$ex)$_SESSION[$id]['item_list'][]=$item;
-	else return self::render_results(['status'=>'this article is already in the basket'],200);//could add quantity
-	return self::render_results(['updated_at'=>$item['updated_at']],200);}
+	else return ['status'=>'this article is already in the basket'];//could add quantity
+	return ['updated_at'=>$item['updated_at']];}
 
 //returns: ['ecommerce_id','customer_id','created_at'=>'','price'=>'','item_list'=>[]];
 static function view($p){
 	[$ecommerce_id,$customer_id,$verbose]=vals($p,['ecommerce_id','customer_id','verbose']);
 	$id=$ecommerce_id.'-'.$customer_id;
 	$ra=$_SESSION[$id]??[]; //pr($ra);
-	if(!$ra)return self::render_results(['status'=>'cart not exists'],200);
+	if(!$ra)return ['status'=>'cart not exists'];
 	$items=$ra['item_list']??[];
-	if(!$items)return self::render_results(['status'=>'cart is empty'],200);
+	if(!$items)return ['status'=>'cart is empty'];
 	$res=self::global_result($items);
 	$ret=['ecommerce_id'=>$ra['ecommerce_id'],'customer_id'=>$ra['customer_id'],'created_at'=>$ra['created_at'],'price'=>$res['total'],'item_list'=>$items];
 	if($verbose)$ret['verbose']=json_encode(self::$process);
-	return self::render_results($ret,200);}
+	return $ret;}
 
 //returns: ['date_checkout','price'=>'','vat'=>'','total'=>''];
 static function checkout($p){
 	[$ecommerce_id,$customer_id,$verbose]=vals($p,['ecommerce_id','customer_id','verbose']);
 	$id=$ecommerce_id.'-'.$customer_id;
 	$items=$_SESSION[$id]['item_list']??[];
-	if(!$items)return self::render_results(['status'=>'cart is empty'],200);
+	if(!$items)return ['status'=>'cart is empty'];
 	$ret=self::global_result($items);
 	if($verbose)$ret['verbose']=json_encode(self::$process);
-	return self::render_results($ret,200);}
+	return $ret;}
 
 /*
 * this section need the frameweork
@@ -212,15 +212,16 @@ static function call($p){$ret='';
 	if(!$prm)return self::render_results(['status'=>'no datas received'],200);
 	if(empty($prm['ecommerce_id']))return self::render_results(['status'=>'ecommerce_id is not specified'],200);
 	if(empty($prm['customer_id']))return self::render_results(['status'=>'customer_id is not specified'],200);
-	if($act=='create')return self::create($prm);
-	if($act=='del')return self::delete($prm);
-	if($act=='add')return self::add($prm);
-	if($act=='view')return self::view($prm);
-	if($act=='checkout')return self::checkout($prm);
+	if($act=='create')$ret=self::create($prm);
+	if($act=='del')$ret=self::delete($prm);
+	if($act=='add')$ret=self::add($prm);
+	if($act=='view')$ret=self::view($prm);
+	if($act=='checkout')$ret=self::checkout($prm);
+	if($ret)return play_r($ret);
 	return help('nothing');}
 
 #call from url api/
-static function api($p){
+static function api($p){$ret='';
 	//pr($p);//framework usually accept pseudo-json urls
 	//pr($_GET);//we obtain here : [app] => cartapi, [p] => create, [ecommerce_id] => 1, [item_list] => {"1":...
 	//ok, go : we build the array
@@ -231,11 +232,12 @@ static function api($p){
 	$prm['verbose']=get('verbose');
 	if(!$prm['ecommerce_id'])return self::render_results(['status'=>'ecommerce_id is not specified'],200);
 	if(!$prm['customer_id'])return self::render_results(['status'=>'customer_id is not specified'],200);
-	if($status=='create')return self::create($prm);
-	if($status=='add')return self::add($prm);
-	if($status=='view')return self::view($prm);
-	if($status=='checkout')return self::checkout($prm);
-	return self::render_results(['bad request'=>'400'],200);}
+	if($status=='create')$ret=self::create($prm);
+	if($status=='add')$ret=self::add($prm);
+	if($status=='view')$ret=self::view($prm);
+	if($status=='checkout')$ret=self::checkout($prm);
+	if($ret)return self::render_results($ret,200);
+	return self::render_results(['bad request'=>'400'],200);}//let to 200
 
 #content (web interface)
 static function ex(){
