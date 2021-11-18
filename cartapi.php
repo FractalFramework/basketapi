@@ -67,20 +67,25 @@ static function render_results($r,$n=404){
 * returns array containing: Amount, Vat, Total
 */
 
-static function calculate_price($item){//pr($item);
-	$price_of_product=1;//all products costs 1
-	$cost_deadline=0;
-	$remittance_quantity=0;
+static function rates_prices($item){
 	//definitions
 	$cost_by_type=['pdf'=>15,'psd'=>35,'ai'=>25];
 	$cost_by_quantity=[100=>5,250=>10,500=>15,1000=>20];//remittance by quantity
 	$cost_by_deadline=[0=>30,86400=>20,172800=>10,259200=>0];//nb days in seconds
 	$deadline=strtotime($item['delivery_date'])-time();//time left at this moment
 	//calculation
-	$amount=$price_of_product*$item['quantity'];
 	$cost_filetype=$cost_by_type[$item['filetype']];
 	foreach($cost_by_quantity as $k=>$v)if($item['quantity']>$k)$remittance_quantity=$v;
 	foreach($cost_by_deadline as $k=>$v)if($deadline>$k)$cost_deadline=$v;
+	return [$cost_filetype,$remittance_quantity,$cost_deadline];}
+
+static function calculate_price($item){//pr($item);
+	$price_of_product=1;//all products costs 1
+	$cost_deadline=0;
+	$remittance_quantity=0;
+	//calculation
+	$amount=$price_of_product*$item['quantity'];
+	[$cost_filetype,$remittance_quantity,$cost_deadline]=self::rates_prices($item);
 	//add all remittances/costs
 	$vat=$cost_filetype+$cost_deadline-$remittance_quantity;
 	//apply remittances/costs
@@ -186,7 +191,7 @@ static function view($p){
 	if(!$items)return ['status'=>'cart is empty'];
 	$res=self::global_result($items);
 	$ret=['ecommerce_id'=>$ra['ecommerce_id'],'customer_id'=>$ra['customer_id'],'created_at'=>$ra['created_at'],'price'=>$res['total'],'item_list'=>$items];
-	if($verbose)$ret['verbose']=json_encode(self::$process);
+	if($verbose)$ret['verbose']=self::$process;
 	return $ret;}
 
 //returns: ['date_checkout','price'=>'','vat'=>'','total'=>''];
@@ -196,7 +201,7 @@ static function checkout($p){
 	$items=$_SESSION[$id]['item_list']??[];
 	if(!$items)return ['status'=>'cart is empty'];
 	$ret=self::global_result($items);
-	if($verbose)$ret['verbose']=json_encode(self::$process);
+	if($verbose)$ret['verbose']=self::$process;
 	return $ret;}
 
 /*
@@ -217,7 +222,7 @@ static function call($p){$ret='';
 	if($act=='add')$ret=self::add($prm);
 	if($act=='view')$ret=self::view($prm);
 	if($act=='checkout')$ret=self::checkout($prm);
-	if($ret)return play_r($ret);
+	if($ret)return play_r($ret);//play array
 	return help('nothing');}
 
 #call from url api/
