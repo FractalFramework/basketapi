@@ -67,7 +67,8 @@ static function render_results($r,$n=404){
 * returns array containing: Amount, Vat, Total
 */
 
-static function rates_prices($item){
+static function scaled_price($item){
+	$remittance_quantity=0; $cost_deadline=0;
 	//definitions
 	$cost_by_type=['pdf'=>15,'psd'=>35,'ai'=>25];
 	$cost_by_quantity=[100=>5,250=>10,500=>15,1000=>20];//remittance by quantity
@@ -75,17 +76,32 @@ static function rates_prices($item){
 	$deadline=strtotime($item['delivery_date'])-time();//time left at this moment
 	//calculation
 	$cost_filetype=$cost_by_type[$item['filetype']];
-	foreach($cost_by_quantity as $k=>$v)if($item['quantity']>$k)$remittance_quantity=$v;
-	foreach($cost_by_deadline as $k=>$v)if($deadline>$k)$cost_deadline=$v;
+	foreach($cost_by_quantity as $k=>$v)if($item['quantity']>=$k)$remittance_quantity=$v;
+	foreach($cost_by_deadline as $k=>$v)if($deadline>=$k)$cost_deadline=$v;
 	return [$cost_filetype,$remittance_quantity,$cost_deadline];}
 
-static function calculate_price($item){//pr($item);
+static function algo_price($item){
+	$remittance_quantity=0; $cost_deadline=0;
+	//definitions
+	$cost_by_type=['pdf'=>15,'psd'=>35,'ai'=>25];
+	$qte=$item['quantity']; if($qte>1000)$qte=1000;//max remittance
+	$ratio_deadline=0.2;
+	$deadline=strtotime($item['delivery_date'])-time();
+	$daysleft=round($deadline/86400,1); if($daysleft>3)$daysleft==3;//calculate deadline by 0.1 day
+	//calculation
+	$cost_filetype=$cost_by_type[$item['filetype']];
+	$remittance_quantity=($res=log($qte/50)*6.7)<0?0:$res;//logarithm
+	$cost_deadline=($res=(3-$daysleft)*12)<0?0:$res;//(3-n)*10;//linear
+	return [$cost_filetype,$remittance_quantity,$cost_deadline];}
+
+static function calculate_price($item,$algo=0){//pr($item);
 	$price_of_product=1;//all products costs 1
 	$cost_deadline=0;
 	$remittance_quantity=0;
 	//calculation
 	$amount=$price_of_product*$item['quantity'];
-	[$cost_filetype,$remittance_quantity,$cost_deadline]=self::rates_prices($item);
+	if($algo==1)[$cost_filetype,$remittance_quantity,$cost_deadline]=self::algo_price($item);
+	else [$cost_filetype,$remittance_quantity,$cost_deadline]=self::scaled_price($item);
 	//add all remittances/costs
 	$vat=$cost_filetype+$cost_deadline-$remittance_quantity;
 	//apply remittances/costs
@@ -101,10 +117,10 @@ static function calculate_price($item){//pr($item);
 * returns array
 */
 
-static function global_result($items){
+static function global_result($items,$algo=0){
 	$additions=[];
 	foreach($items as $k=>$item)
-		$additions[]=self::calculate_price($item);
+		$additions[]=self::calculate_price($item,$algo);
 	$price=array_sum(array_column($additions,'amount'));
 	$vat=array_sum(array_column($additions,'vat'))/count($additions);//average
 	$total=array_sum(array_column($additions,'total'));
@@ -183,24 +199,24 @@ static function add($p){
 
 //returns: ['ecommerce_id','customer_id','created_at'=>'','price'=>'','item_list'=>[]];
 static function view($p){
-	[$ecommerce_id,$customer_id,$verbose]=vals($p,['ecommerce_id','customer_id','verbose']);
+	[$ecommerce_id,$customer_id,$verbose,$algo]=vals($p,['ecommerce_id','customer_id','verbose','algo']);
 	$id=$ecommerce_id.'-'.$customer_id;
 	$ra=$_SESSION[$id]??[]; //pr($ra);
 	if(!$ra)return ['status'=>'cart not exists'];
 	$items=$ra['item_list']??[];
 	if(!$items)return ['status'=>'cart is empty'];
-	$res=self::global_result($items);
+	$res=self::global_result($items,$algo);
 	$ret=['ecommerce_id'=>$ra['ecommerce_id'],'customer_id'=>$ra['customer_id'],'created_at'=>$ra['created_at'],'price'=>$res['total'],'item_list'=>$items];
 	if($verbose)$ret['verbose']=self::$process;
 	return $ret;}
 
 //returns: ['date_checkout','price'=>'','vat'=>'','total'=>''];
 static function checkout($p){
-	[$ecommerce_id,$customer_id,$verbose]=vals($p,['ecommerce_id','customer_id','verbose']);
+	[$ecommerce_id,$customer_id,$verbose,$algo]=vals($p,['ecommerce_id','customer_id','verbose','algo']);
 	$id=$ecommerce_id.'-'.$customer_id;
 	$items=$_SESSION[$id]['item_list']??[];
 	if(!$items)return ['status'=>'cart is empty'];
-	$ret=self::global_result($items);
+	$ret=self::global_result($items,$algo);
 	if($verbose)$ret['verbose']=self::$process;
 	return $ret;}
 
@@ -235,6 +251,7 @@ static function api($p){$ret='';
 	$prm['customer_id']=get('customer_id');
 	$prm['item_list']=get('item_list');
 	$prm['verbose']=get('verbose');
+	$prm['algo']=get('algo');
 	if(!$prm['ecommerce_id'])return self::render_results(['status'=>'ecommerce_id is not specified'],200);
 	if(!$prm['customer_id'])return self::render_results(['status'=>'customer_id is not specified'],200);
 	if($status=='create')$ret=self::create($prm);
@@ -247,8 +264,8 @@ static function api($p){$ret='';
 #content (web interface)
 static function ex(){
 return ['call'=>'ecommerce_id=1&customer_id=1',
-'ex1'=>'ecommerce_id=1&customer_id=1&item_list={"product_sku":1,"product_name":"prod1","filetype":"pdf","quantity":"101","delivery_date":"2021-11-20"}&verbose=0',
-'ex2'=>'ecommerce_id=1&customer_id=1&item_list={"product_sku":2,"product_name":"prod2","filetype":"ai","quantity":"499","delivery_date":"2021-11-19"}&verbose=0'];}
+'ex1'=>'ecommerce_id=1&customer_id=1&item_list={"product_sku":1,"product_name":"prod1","filetype":"pdf","quantity":"101","delivery_date":"'.date('Y-m-d',time()+86400).'"}&verbose=0&algo=0',
+'ex2'=>'ecommerce_id=1&customer_id=1&item_list={"product_sku":2,"product_name":"prod2","filetype":"ai","quantity":"499","delivery_date":"'.date('Y-m-d',time()+172800).'"}&verbose=0&algo=1'];}
 
 static function menu($p){$p1=$p['p1']??'';
 	$ret=build::sample(['a'=>'cartapi','b'=>'p1']);
@@ -258,7 +275,7 @@ static function menu($p){$p1=$p['p1']??'';
 	$ret.=bj(self::$cb.',,z|'.self::$a.',call|act=add|p1',langp('add'),'btsav');
 	$ret.=bj(self::$cb.',,z|'.self::$a.',call|act=view|p1',langp('view'),'btsav');
 	$ret.=bj(self::$cb.',,z|'.self::$a.',call|act=checkout|p1',langp('checkout'),'btsav');
-	$ret.=lk('http://logic.ovh/api/cartapi/create&',langp('api'),'btn');
+	$ret.=lk('http://logic.ovh/api/cartapi/view&',langp('api'),'btn');
 	$ret.=hlpbt('cartapi_app');
 	return $ret;}
 
