@@ -16,10 +16,18 @@ For time discounts, it is a question of making a difference according to the tim
 
 It then remains to limit these results for negative results and beyond a maximum threshold.
 
-Comparative table of results
+![algos](https://user-images.githubusercontent.com/15765888/142649839-10258690-21aa-43e9-9511-464af548f579.png)
 
-Graph of the logarithm of quantity discounts
+_Comparative table of results_
 
-Curve of additional costs due to delays
+![algo1](https://user-images.githubusercontent.com/15765888/142649864-3952c814-dc22-4ae1-9e0a-273ed28b6c30.png)
+
+_Graph of the logarithm of quantity discounts_
+
+![algo2](https://user-images.githubusercontent.com/15765888/142649885-de60ed9d-d338-4fa7-86e0-f1a5a93987fc.png)
+
+_Curve of additional costs due to delays_
+
+## param "algo" in the Api
+
 In the Api, we have added the "algo" variable, which is 0 by default, and can be set to 1 to use the algorithmic progression.
-
