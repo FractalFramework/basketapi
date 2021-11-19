@@ -54,8 +54,7 @@ The interface allows you to test renderings by playing with variables, create, a
 
 Examples are provided in order to perform these tests.
 
-![FEi1LbnX0AUFMLO](https://user-images.githubusercontent.com/15765888/142625867-9e0ba9ce-32c7-474a-8a5f-d166487aaef8.jpg)
-
+![unitest](https://user-images.githubusercontent.com/15765888/142625939-72343375-2734-4482-8977-ef6e913fd5e0.png)
 
 ## Url
 
