@@ -52,6 +52,8 @@ The functions are built with a single variable, which is an array. Each function
 
 The interface allows you to test renderings by playing with variables, create, add, check or delete baskets.
 
+![cartapi](https://user-images.githubusercontent.com/15765888/142626216-f6e9070d-409e-40f9-9786-16cd8ac938f8.png)
+
 Examples are provided in order to perform these tests.
 
 ![unitest](https://user-images.githubusercontent.com/15765888/142625939-72343375-2734-4482-8977-ef6e913fd5e0.png)
